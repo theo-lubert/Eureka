@@ -49,8 +49,15 @@ public struct CellProvider<Cell: BaseCell> where Cell: CellType {
 
     /// Bundle from which to get the nib file.
     public private (set) var bundle: Bundle!
+    
+    /// Creates the cell inside the specified block
+    public private (set) var builder: (() -> Cell)?
 
     public init() {}
+    
+    public init(_ builder: @escaping () -> Cell) {
+        self.builder = builder
+    }
 
     public init(nibName: String, bundle: Bundle? = nil) {
         self.nibName = nibName
@@ -65,6 +72,9 @@ public struct CellProvider<Cell: BaseCell> where Cell: CellType {
      - returns: the cell
      */
     func makeCell(style: UITableViewCellStyle) -> Cell {
+        if let builder = self.builder {
+            return builder()
+        }
         if let nibName = self.nibName {
             return bundle.loadNibNamed(nibName, owner: nil, options: nil)!.first as! Cell
         }
