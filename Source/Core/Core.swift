@@ -324,6 +324,9 @@ public enum EurekaError: Error {
 */
 public protocol FormViewControllerProtocol {
     var tableView: UITableView! { get }
+    
+    var rowKeyboardSpacing: CGFloat { get }
+    var animateScroll: Bool { get }
 
     func beginEditing<T: Equatable>(of: Cell<T>)
     func endEditing<T: Equatable>(of: Cell<T>)
@@ -960,6 +963,7 @@ extension FormViewController {
      */
     open func keyboardWillShow(_ notification: Notification) {
         guard let table = tableView, let cell = table.findFirstResponder()?.formCell() else { return }
+        guard table.isScrollEnabled == true else { return }
         let keyBoardInfo = notification.userInfo!
         let endFrame = keyBoardInfo[UIKeyboardFrameEndUserInfoKey] as! NSValue
 
@@ -977,7 +981,7 @@ extension FormViewController {
             table.contentInset = tableInsets
             table.scrollIndicatorInsets = scrollIndicatorInsets
             if let selectedRow = table.indexPath(for: cell) {
-                table.scrollToRow(at: selectedRow, at: .none, animated: animateScroll)
+                scrollToRow(at: selectedRow)
             }
             UIView.commitAnimations()
         }
@@ -1022,7 +1026,7 @@ extension FormViewController {
         guard let currentIndexPath = tableView?.indexPath(for: currentCell) else { assertionFailure(); return }
         guard let nextRow = nextRow(for: form[currentIndexPath], withDirection: direction) else { return }
         if nextRow.baseCell.cellCanBecomeFirstResponder() {
-            tableView?.scrollToRow(at: nextRow.indexPath!, at: .none, animated: animateScroll)
+            scrollToRow(at: nextRow.indexPath!)
             nextRow.baseCell.cellBecomeFirstResponder(withDirection: direction)
         }
     }
@@ -1045,14 +1049,35 @@ extension FormViewController {
     }
 }
 
+
+fileprivate func parentScrollViewOf(_ view: UIView) -> UIScrollView? {
+	guard let parent = view.superview else { return nil }
+	if let scrollView = parent as? UIScrollView {
+		return scrollView
+	}
+	return parentScrollViewOf(parent)
+}
+
 extension FormViewControllerProtocol {
 
     // MARK: Helpers
+    
+	func scrollToRow(at indexPath: IndexPath, at: UITableViewScrollPosition = .bottom) {
+        if tableView.isScrollEnabled {
+            tableView.scrollToRow(at: indexPath, at: at, animated: animateScroll)
+        } else if let scrollView = parentScrollViewOf(tableView), let cellFrame = tableView.cellForRow(at: indexPath)?.frame {
+            let f = tableView.convert(cellFrame, to: scrollView)
+            let offset = max(0.0, min(scrollView.contentSize.height, (f.origin.y + f.height + rowKeyboardSpacing - (scrollView.bounds.height - scrollView.contentInset.bottom))))
+            UIView.animate(withDuration: (animateScroll ? 0.3 : 0.0), animations: {
+                scrollView.contentOffset = CGPoint(x: scrollView.contentOffset.x, y: offset)
+            })
+        }
+    }
 
     func makeRowVisible(_ row: BaseRow) {
         guard let cell = row.baseCell, let indexPath = row.indexPath, let tableView = tableView else { return }
         if cell.window == nil || (tableView.contentOffset.y + tableView.frame.size.height <= cell.frame.origin.y + cell.frame.size.height) {
-            tableView.scrollToRow(at: indexPath, at: .bottom, animated: true)
+			scrollToRow(at: indexPath)
         }
     }
 }
